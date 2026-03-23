@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { background: #0a0a0a; }
+.glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(168,85,247,0.3); }
+.btn-gradient { background: linear-gradient(90deg, #a855f7, #c084fc); }
