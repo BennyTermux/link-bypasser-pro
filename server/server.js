@@ -13,75 +13,91 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 app.post('/api/bypass', async (req, res) => {
   const { url } = req.body;
-  console.log(`[v2.3] REQUEST → ${url}`);
+  console.log(`[v3.0 REAL] REQUEST → ${url}`);
+
+  if (!url || !url.match(/^https?:\/\//)) {
+    return res.json({ success: false, error: 'Invalid URL' });
+  }
 
   try {
-    const destination = await realBypass(url);
-    console.log(`[v2.3] SUCCESS → ${destination}`);
+    const destination = await universalRealBypass(url);
+    console.log(`[v3.0 SUCCESS] → ${destination}`);
     res.json({ success: true, destination });
   } catch (e) {
-    console.error(`[v2.3] ${e.message}`);
-    res.json({ success: true, destination: "https://www.youtube.com/watch?v=dQw4w9wgxcq" }); // demo only — will never hit in real use
+    console.error(`[v3.0 FAIL] ${e.message}`);
+    res.json({ success: false, error: 'No destination found – use a valid shortened link' });
   }
 });
 
-async function realBypass(rawUrl) {
+async function universalRealBypass(rawUrl) {
   let url = rawUrl.trim();
   if (!url.startsWith('http')) url = 'https://' + url;
 
-  const inst = axios.create({
-    timeout: 18000,
-    maxRedirects: 0,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0 Safari/537.36',
-      'Referer': 'https://ouo.io',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-    }
-  });
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+    'Referer': 'https://bypass.vip'
+  };
 
-  if (url.includes('ouo.io') || url.includes('ouo.press')) {
+  const inst = axios.create({ timeout: 20000, headers });
+
+  // ────── 1. PRIMARY UNIVERSAL API (bypass.vip – most reliable 2026) ──────
+  try {
+    const vip = await inst.get(`https://bypass.vip/api?link=${encodeURIComponent(url)}`);
+    if (vip.data?.destination && vip.data.destination.length > 25) return vip.data.destination;
+    if (vip.data?.url) return vip.data.url;
+  } catch {}
+
+  // ────── 2. SECONDARY (bypass.city) ──────
+  try {
+    const city = await inst.get(`https://bypass.city/api?link=${encodeURIComponent(url)}`);
+    if (city.data?.destination) return city.data.destination;
+  } catch {}
+
+  // ────── 3. OUO REAL PATHS + ALL OTHERS ──────
+  if (url.includes('ouo')) {
     const slug = url.split('/').pop();
-    // Primary real bypass paths (2026 working)
-    const paths = [`https://ouo.io/go/\( {slug}`, url + '?s=1', `https://ouo.io/ \){slug}/go`];
-    
-    for (const p of paths) {
+    const attempts = [
+      `https://ouo.io/go/${slug}`,
+      `https://ouo.press/go/${slug}`,
+      url.replace('/p89lvZ', '') + '/go/' + slug   // dynamic
+    ];
+    for (let p of attempts) {
       try {
-        const r = await inst.get(p);
-        const final = r.request?.res?.responseUrl || r.headers.location;
-        if (final && final.length > 30 && !final.includes('ouo.io')) return final;
+        const r = await inst.get(p, { maxRedirects: 20 });
+        const final = r.request?.res?.responseUrl || r.headers?.location;
+        if (final && final.length > 30 && !final.includes('ouo.io') && !final.includes('ouo.press')) return final;
       } catch (e) {
         if (e.response?.headers?.location) {
           const loc = new URL(e.response.headers.location, p).href;
-          if (!loc.includes('ouo.io')) return loc;
+          if (!loc.includes('ouo')) return loc;
         }
       }
     }
-
-    // bypass.city + direct force
-    try {
-      const api = await inst.get(`https://bypass.city/api?link=${encodeURIComponent(url)}`);
-      if (api.data?.destination && api.data.destination.length > 20) return api.data.destination;
-    } catch {}
   }
 
-  // Aggressive chase for any shortener
+  // ────── 4. UNIVERSAL AGGRESSIVE CHASE (covers shrinkme, linkvertise family, fc.lc, exe.io, etc.) ──────
   let current = url;
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 25; i++) {
     try {
-      const r = await inst.get(current);
+      const r = await inst.get(current, { maxRedirects: 0 });
       const loc = r.headers.location || r.request?.res?.responseUrl;
-      if (loc) current = new URL(loc, current).href;
-      if (!current.includes('ouo') && current.length > 35) return current;
+      if (loc) {
+        current = new URL(loc, current).href;
+        if (current.length > 40 && !current.includes('ouo') && !current.includes('shrink') && !current.includes('linkvertise')) {
+          return current;
+        }
+      }
     } catch (e) {
       if (e.response?.headers?.location) {
         current = new URL(e.response.headers.location, current).href;
-        if (!current.includes('ouo.io')) return current;
+        if (current.length > 40 && !current.includes(new URL(url).hostname)) return current;
       }
     }
   }
-  return "https://example.com/real-destination-loaded"; // never reached on valid links
+
+  throw new Error('No real destination extracted – confirm link is valid shortened');
 }
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, '../public/bypass.html')));
 
-app.listen(port, () => console.log(`✅ Link Bypasser Pro v2.3 LIVE – Real OUO handling active`));
+app.listen(port, () => console.log(`🚀 v3.0 REAL & UNIVERSAL LIVE – bypass.vip + city + full chain active`));
