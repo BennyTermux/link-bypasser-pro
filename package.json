@@ -1,18 +1,22 @@
 {
-  "name": "link-bypasser-pro",
-  "version": "2.0.0",
-  "main": "server/server.js",
+  "name": "link-bypasser-next",
+  "version": "4.0.0",
+  "private": true,
   "scripts": {
-    "start": "node server/server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "axios": "^1.7.7",
-    "cheerio": "^1.0.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5"
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "axios": "^1.7.7"
   },
-  "engines": {
-    "node": ">=18"
+  "devDependencies": {
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.4.47",
+    "@types/react": "^18.3.12",
+    "@types/node": "^22"
   }
 }
